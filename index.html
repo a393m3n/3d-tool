@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Box Mockup — 20.1 × 10.8 × 4.6 cm</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a1a; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+
+  #app { display: flex; width: 100vw; height: 100vh; }
+
+  #canvas-wrap { flex: 1; position: relative; }
+  canvas { display: block; width: 100% !important; height: 100% !important; }
+
+  #panel {
+    width: 300px; min-width: 300px; background: #222; border-left: 1px solid #333;
+    display: flex; flex-direction: column; overflow-y: auto;
+  }
+
+  .section { padding: 16px; border-bottom: 1px solid #333; }
+  .section h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 12px; }
+
+  .dim-badge {
+    background: #2a2a2a; border: 1px solid #444; border-radius: 6px;
+    padding: 10px 14px; font-size: 13px; color: #ccc; margin-bottom: 8px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .dim-badge span { color: #4fc3f7; font-weight: 600; }
+
+  .btn {
+    width: 100%; padding: 9px 14px; border-radius: 6px; border: none; cursor: pointer;
+    font-size: 13px; font-weight: 500; transition: all .15s; margin-bottom: 8px;
+  }
+  .btn-primary { background: #4fc3f7; color: #111; }
+  .btn-primary:hover { background: #81d4fa; }
+  .btn-outline { background: transparent; color: #aaa; border: 1px solid #444; }
+  .btn-outline:hover { border-color: #4fc3f7; color: #4fc3f7; }
+  .btn-outline.active { border-color: #4fc3f7; color: #4fc3f7; background: rgba(79,195,247,.1); }
+
+  .face-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .face-btn {
+    padding: 8px 6px; border-radius: 5px; border: 1px solid #444;
+    background: #2a2a2a; color: #aaa; cursor: pointer; font-size: 12px;
+    text-align: center; transition: all .15s;
+  }
+  .face-btn:hover, .face-btn.active { border-color: #4fc3f7; color: #4fc3f7; background: rgba(79,195,247,.08); }
+  .face-btn .icon { font-size: 18px; display: block; margin-bottom: 3px; }
+
+  .upload-area {
+    border: 2px dashed #444; border-radius: 8px; padding: 16px;
+    text-align: center; cursor: pointer; transition: all .15s; margin-bottom: 8px;
+  }
+  .upload-area:hover { border-color: #4fc3f7; background: rgba(79,195,247,.04); }
+  .upload-area p { font-size: 12px; color: #777; margin-top: 4px; }
+
+  label { display: block; font-size: 12px; color: #999; margin-bottom: 5px; }
+  input[type="color"] {
+    width: 100%; height: 34px; border: 1px solid #444; border-radius: 5px;
+    background: #2a2a2a; cursor: pointer; margin-bottom: 8px;
+  }
+  input[type="range"] { width: 100%; accent-color: #4fc3f7; margin-bottom: 12px; }
+
+  .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .row label { margin: 0; min-width: 70px; }
+
+  #tooltip {
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,.7); color: #ccc; padding: 7px 14px;
+    border-radius: 20px; font-size: 12px; pointer-events: none;
+    opacity: 1; transition: opacity .5s;
+  }
+
+  #selected-label {
+    position: absolute; top: 16px; left: 16px;
+    background: rgba(79,195,247,.15); border: 1px solid #4fc3f7;
+    color: #4fc3f7; padding: 5px 12px; border-radius: 4px;
+    font-size: 12px; display: none;
+  }
+
+  .tab-row { display: flex; gap: 0; margin-bottom: 14px; }
+  .tab {
+    flex: 1; padding: 7px; text-align: center; cursor: pointer;
+    font-size: 12px; border: 1px solid #444; color: #888;
+    background: #2a2a2a; transition: all .15s;
+  }
+  .tab:first-child { border-radius: 5px 0 0 5px; }
+  .tab:last-child { border-radius: 0 5px 5px 0; border-left: none; }
+  .tab.active { background: #4fc3f7; color: #111; border-color: #4fc3f7; }
+
+  .checkbox-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 13px; }
+  input[type="checkbox"] { accent-color: #4fc3f7; width: 15px; height: 15px; }
+
+  #loading {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: #1a1a1a; flex-direction: column; gap: 16px; z-index: 10;
+  }
+  .spinner {
+    width: 40px; height: 40px; border: 3px solid #333; border-top-color: #4fc3f7;
+    border-radius: 50%; animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="canvas-wrap">
+    <div id="loading"><div class="spinner"></div><div style="color:#888;font-size:13px">Building 3D model…</div></div>
+    <canvas id="c"></canvas>
+    <div id="selected-label">Selected: <strong id="sel-name">—</strong></div>
+    <div id="tooltip">Drag to rotate · Scroll to zoom · Click a face to edit</div>
+  </div>
+
+  <div id="panel">
+    <!-- Dimensions -->
+    <div class="section">
+      <h3>Box Specification</h3>
+      <div class="dim-badge">Length <span>20.1 cm</span></div>
+      <div class="dim-badge">Width <span>10.8 cm</span></div>
+      <div class="dim-badge">Height <span>4.6 cm</span></div>
+      <div class="dim-badge">Material <span>Kraft</span></div>
+    </div>
+
+    <!-- View controls -->
+    <div class="section">
+      <h3>View</h3>
+      <div class="tab-row">
+        <div class="tab active" onclick="setView('both')">Both</div>
+        <div class="tab" onclick="setView('lid')">Lid only</div>
+        <div class="tab" onclick="setView('tray')">Tray only</div>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="cb-open" onchange="toggleOpen(this.checked)">
+        <label for="cb-open" style="margin:0;color:#ccc">Open lid</label>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="cb-wire" onchange="toggleWire(this.checked)">
+        <label for="cb-wire" style="margin:0;color:#ccc">Wireframe</label>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="cb-texture" checked onchange="toggleTexture(this.checked)">
+        <label for="cb-texture" style="margin:0;color:#ccc">Kraft texture</label>
+      </div>
+    </div>
+
+    <!-- Face selector -->
+    <div class="section">
+      <h3>Select Face to Edit</h3>
+      <div class="face-grid" id="face-grid">
+        <div class="face-btn" data-face="lid_top" onclick="selectFace('lid_top',this)"><span class="icon">🔲</span>Lid Top</div>
+        <div class="face-btn" data-face="lid_front" onclick="selectFace('lid_front',this)"><span class="icon">◻️</span>Lid Front</div>
+        <div class="face-btn" data-face="lid_back" onclick="selectFace('lid_back',this)"><span class="icon">◻️</span>Lid Back</div>
+        <div class="face-btn" data-face="lid_left" onclick="selectFace('lid_left',this)"><span class="icon">◻️</span>Lid Left</div>
+        <div class="face-btn" data-face="lid_right" onclick="selectFace('lid_right',this)"><span class="icon">◻️</span>Lid Right</div>
+        <div class="face-btn" data-face="tray_bottom" onclick="selectFace('tray_bottom',this)"><span class="icon">⬛</span>Tray Bottom</div>
+        <div class="face-btn" data-face="tray_front" onclick="selectFace('tray_front',this)"><span class="icon">▪️</span>Tray Front</div>
+        <div class="face-btn" data-face="tray_back" onclick="selectFace('tray_back',this)"><span class="icon">▪️</span>Tray Back</div>
+        <div class="face-btn" data-face="tray_left" onclick="selectFace('tray_left',this)"><span class="icon">▪️</span>Tray Left</div>
+        <div class="face-btn" data-face="tray_right" onclick="selectFace('tray_right',this)"><span class="icon">▪️</span>Tray Right</div>
+      </div>
+    </div>
+
+    <!-- Face editor -->
+    <div class="section" id="face-editor" style="display:none">
+      <h3>Edit: <span id="edit-face-name" style="color:#4fc3f7">—</span></h3>
+
+      <div class="upload-area" onclick="document.getElementById('file-in').click()">
+        <div style="font-size:24px">🖼️</div>
+        <strong style="font-size:13px">Upload artwork</strong>
+        <p>PNG / JPG / SVG</p>
+      </div>
+      <input type="file" id="file-in" accept="image/*" style="display:none" onchange="applyImage(this)">
+
+      <label>Base colour</label>
+      <input type="color" id="face-color" value="#c4a07a" onchange="applyColor(this.value)">
+
+      <label>Texture blend</label>
+      <input type="range" id="tex-blend" min="0" max="1" step="0.01" value="0.6" oninput="applyBlend(this.value)">
+
+      <button class="btn btn-outline" onclick="resetFace()">Reset face</button>
+    </div>
+
+    <!-- Global -->
+    <div class="section">
+      <h3>Global</h3>
+      <label>Kraft base colour</label>
+      <input type="color" id="global-kraft" value="#c4a07a" onchange="setKraftColor(this.value)">
+      <label>Environment light</label>
+      <input type="range" id="env-light" min="0.2" max="3" step="0.05" value="1.2" oninput="setLight(this.value)">
+      <button class="btn btn-primary" onclick="resetCamera()">Reset camera</button>
+      <button class="btn btn-outline" onclick="exportPNG()">Export PNG</button>
+    </div>
+
+    <div style="padding:16px;color:#555;font-size:11px;line-height:1.6">
+      Box: 20.1 × 10.8 × 4.6 cm<br>
+      Two-piece smartphone box<br>
+      Kraft cardboard · CMYK print
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ── Constants ──────────────────────────────────────────────────────────────
+const W = 20.1, H = 10.8, D = 4.6;   // cm
+const S = 0.1;                         // scale to scene units
+const w = W*S, h = H*S, d = D*S;
+
+// lid slightly larger
+const LID_OVERHANG = 0.05;
+const lw = w + LID_OVERHANG*2;
+const lh = h + LID_OVERHANG*2;
+const LID_DEPTH   = d * 0.28;  // lid is ~28% of total depth
+const TRAY_DEPTH  = d * 0.76;  // tray is ~76% of total depth
+
+// ── Scene setup ───────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a1a);
+scene.fog = new THREE.Fog(0x1a1a1a, 10, 40);
+
+const camera = new THREE.PerspectiveCamera(38, 1, 0.01, 100);
+camera.position.set(3.5, 2.8, 4.2);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.minDistance = 1;
+controls.maxDistance = 18;
+controls.target.set(0, 0, 0);
+
+// ── Kraft texture generator ────────────────────────────────────────────────
+function makeKraftTexture(size = 512) {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = size;
+  const ctx = cv.getContext('2d');
+
+  // Base kraft colour
+  ctx.fillStyle = '#c4a07a';
+  ctx.fillRect(0, 0, size, size);
+
+  // Grain fibres
+  const seed = Math.random;
+  for (let i = 0; i < 3000; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const len = 4 + Math.random() * 18;
+    const angle = Math.random() * Math.PI;
+    const alpha = 0.03 + Math.random() * 0.08;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.strokeStyle = `rgba(80,50,20,${alpha})`;
+    ctx.lineWidth = 0.3 + Math.random() * 0.7;
+    ctx.beginPath();
+    ctx.moveTo(-len/2, 0);
+    ctx.lineTo(len/2, 0);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Subtle noise overlay
+  for (let y = 0; y < size; y += 2) {
+    for (let x = 0; x < size; x += 2) {
+      const v = (Math.random() - 0.5) * 18;
+      ctx.fillStyle = `rgba(${v>0?255:0},${v>0?200:100},${v>0?120:40},${Math.abs(v)/255*0.25})`;
+      ctx.fillRect(x, y, 2, 2);
+    }
+  }
+
+  // Horizontal micro-lines (paper roll texture)
+  for (let i = 0; i < 60; i++) {
+    const y = Math.random() * size;
+    ctx.strokeStyle = `rgba(120,80,30,${0.02 + Math.random()*0.05})`;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(size, y);
+    ctx.stroke();
+  }
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(3, 3);
+  return tex;
+}
+
+const kraftTex = makeKraftTexture(512);
+
+// ── Normal map for cardboard micro-bump ────────────────────────────────────
+function makeNormalMap(size = 256) {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = size;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#8080ff';
+  ctx.fillRect(0, 0, size, size);
+  for (let i = 0; i < 800; i++) {
+    const x = Math.random()*size, y = Math.random()*size;
+    const r = 2 + Math.random()*4;
+    const g = ctx.createRadialGradient(x,y,0,x,y,r);
+    const d = Math.random()>0.5?1:-1;
+    g.addColorStop(0, d>0?'rgba(180,180,255,0.3)':'rgba(50,50,255,0.3)');
+    g.addColorStop(1, 'rgba(128,128,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(4, 4);
+  return tex;
+}
+const normalMap = makeNormalMap();
+
+// ── Material factory ──────────────────────────────────────────────────────
+const KRAFT_COLOR = new THREE.Color('#c4a07a');
+
+function makeMat(opts = {}) {
+  return new THREE.MeshStandardMaterial({
+    color: KRAFT_COLOR.clone(),
+    map: kraftTex,
+    normalMap: normalMap,
+    normalScale: new THREE.Vector2(0.4, 0.4),
+    roughness: 0.88,
+    metalness: 0.0,
+    ...opts
+  });
+}
+
+// ── Per-face materials storage ─────────────────────────────────────────────
+// Each face stores its own material so we can edit independently
+const faceMats = {};
+const faceObjects = {};
+
+function createFaceMat(id) {
+  const m = makeMat();
+  faceMats[id] = m;
+  return m;
+}
+
+// ── Box geometry builder ──────────────────────────────────────────────────
+// Create an open-top box (5 faces) using PlaneGeometry positioned/rotated
+function buildOpenBox(bw, bh, bd, facePrefix, flipNormals = false) {
+  const group = new THREE.Group();
+  const n = flipNormals ? -1 : 1;
+
+  const faces = [
+    { id: `${facePrefix}_front`,  pos: [0, bd/2, bh/2],  rot: [0, 0, 0],           size: [bw, bd] },
+    { id: `${facePrefix}_back`,   pos: [0, bd/2, -bh/2], rot: [0, Math.PI, 0],     size: [bw, bd] },
+    { id: `${facePrefix}_left`,   pos: [-bw/2, bd/2, 0], rot: [0, -Math.PI/2, 0],  size: [bh, bd] },
+    { id: `${facePrefix}_right`,  pos: [bw/2, bd/2, 0],  rot: [0, Math.PI/2, 0],   size: [bh, bd] },
+    { id: `${facePrefix}_bottom`, pos: [0, 0, 0],         rot: [-Math.PI/2, 0, 0],  size: [bw, bh] },
+  ];
+
+  faces.forEach(({ id, pos, rot, size }) => {
+    const geo = new THREE.PlaneGeometry(size[0], size[1], 8, 8);
+    if (flipNormals) geo.attributes.normal.array.forEach((_,i) => geo.attributes.normal.array[i] *= -1);
+    const mat = createFaceMat(id);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(...pos);
+    mesh.rotation.set(...rot);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.userData.faceId = id;
+    faceObjects[id] = mesh;
+    group.add(mesh);
+  });
+
+  return group;
+}
+
+// ── Build lid (open bottom box, flipped) ─────────────────────────────────
+function buildLid(bw, bh, bd) {
+  const group = new THREE.Group();
+  const faces = [
+    { id: 'lid_top',   pos: [0, bd, 0],    rot: [Math.PI/2, 0, 0],   size: [bw, bh] },
+    { id: 'lid_front', pos: [0, bd/2, bh/2], rot: [0, 0, 0],           size: [bw, bd] },
+    { id: 'lid_back',  pos: [0, bd/2, -bh/2],rot: [0, Math.PI, 0],     size: [bw, bd] },
+    { id: 'lid_left',  pos: [-bw/2, bd/2, 0],rot: [0, -Math.PI/2, 0],  size: [bh, bd] },
+    { id: 'lid_right', pos: [bw/2, bd/2, 0], rot: [0, Math.PI/2, 0],   size: [bh, bd] },
+  ];
+
+  faces.forEach(({ id, pos, rot, size }) => {
+    const geo = new THREE.PlaneGeometry(size[0], size[1], 8, 8);
+    const mat = createFaceMat(id);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(...pos);
+    mesh.rotation.set(...rot);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.userData.faceId = id;
+    faceObjects[id] = mesh;
+    group.add(mesh);
+  });
+
+  // inside faces (subtle different colour)
+  const insideFaces = [
+    { pos: [0, bd-0.001, 0],    rot: [-Math.PI/2, 0, 0],  size: [bw, bh] },
+    { pos: [0, bd/2, bh/2-0.001],  rot: [Math.PI, 0, 0],     size: [bw, bd] },
+    { pos: [0, bd/2, -bh/2+0.001], rot: [0, 0, 0],            size: [bw, bd] },
+    { pos: [-bw/2+0.001, bd/2, 0], rot: [0, Math.PI/2, 0],   size: [bh, bd] },
+    { pos: [bw/2-0.001, bd/2, 0],  rot: [0, -Math.PI/2, 0],  size: [bh, bd] },
+  ];
+  insideFaces.forEach(({ pos, rot, size }) => {
+    const geo = new THREE.PlaneGeometry(size[0], size[1]);
+    const mat = makeMat({ color: new THREE.Color('#b8936a') });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(...pos);
+    mesh.rotation.set(...rot);
+    group.add(mesh);
+  });
+
+  return group;
+}
+
+// Build tray (open-top box)
+function buildTray(bw, bh, bd) {
+  const group = new THREE.Group();
+  const faces = [
+    { id: 'tray_front',  pos: [0, bd/2, bh/2],  rot: [0, 0, 0],           size: [bw, bd] },
+    { id: 'tray_back',   pos: [0, bd/2, -bh/2], rot: [0, Math.PI, 0],     size: [bw, bd] },
+    { id: 'tray_left',   pos: [-bw/2, bd/2, 0], rot: [0, -Math.PI/2, 0],  size: [bh, bd] },
+    { id: 'tray_right',  pos: [bw/2, bd/2, 0],  rot: [0, Math.PI/2, 0],   size: [bh, bd] },
+    { id: 'tray_bottom', pos: [0, 0, 0],          rot: [-Math.PI/2, 0, 0],  size: [bw, bh] },
+  ];
+
+  faces.forEach(({ id, pos, rot, size }) => {
+    const geo = new THREE.PlaneGeometry(size[0], size[1], 8, 8);
+    const mat = createFaceMat(id);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(...pos);
+    mesh.rotation.set(...rot);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.userData.faceId = id;
+    faceObjects[id] = mesh;
+    group.add(mesh);
+  });
+
+  // inside bottom
+  const inGeo = new THREE.PlaneGeometry(bw - 0.02, bh - 0.02);
+  const inMat = makeMat({ color: new THREE.Color('#b8936a') });
+  const inMesh = new THREE.Mesh(inGeo, inMat);
+  inMesh.position.set(0, 0.001, 0);
+  inMesh.rotation.set(-Math.PI/2, 0, 0);
+  group.add(inMesh);
+
+  return group;
+}
+
+// ── Assemble scene ────────────────────────────────────────────────────────
+const boxGroup = new THREE.Group();
+scene.add(boxGroup);
+
+const trayGroup = buildTray(w, h, TRAY_DEPTH);
+trayGroup.position.y = 0;
+boxGroup.add(trayGroup);
+
+const lidGroup = buildLid(lw, lh, LID_DEPTH);
+lidGroup.position.y = TRAY_DEPTH;
+boxGroup.add(lidGroup);
+
+// Center the box
+boxGroup.position.y = -(TRAY_DEPTH + LID_DEPTH) / 2;
+
+// ── Ground plane ──────────────────────────────────────────────────────────
+const groundGeo = new THREE.PlaneGeometry(30, 30);
+const groundMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI/2;
+ground.position.y = -(TRAY_DEPTH + LID_DEPTH) / 2 - 0.001;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// ── Lights ────────────────────────────────────────────────────────────────
+const ambient = new THREE.AmbientLight(0xfff0e0, 0.5);
+scene.add(ambient);
+
+const key = new THREE.DirectionalLight(0xfff5e8, 1.4);
+key.position.set(5, 8, 6);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.near = 0.1;
+key.shadow.camera.far = 30;
+key.shadow.camera.left = -5;
+key.shadow.camera.right = 5;
+key.shadow.camera.top = 5;
+key.shadow.camera.bottom = -5;
+key.shadow.bias = -0.001;
+scene.add(key);
+
+const fill = new THREE.DirectionalLight(0xd0e8ff, 0.4);
+fill.position.set(-4, 3, -3);
+scene.add(fill);
+
+const rim = new THREE.DirectionalLight(0xffe8c0, 0.3);
+rim.position.set(0, -2, -6);
+scene.add(rim);
+
+// ── Raycaster for face selection ───────────────────────────────────────────
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let selectedFaceId = null;
+let highlightMesh = null;
+
+canvas.addEventListener('click', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+
+  const meshes = Object.values(faceObjects);
+  const hits = raycaster.intersectObjects(meshes);
+  if (hits.length > 0) {
+    const hit = hits[0].object;
+    selectFace(hit.userData.faceId, null);
+  }
+});
+
+// ── Resize ────────────────────────────────────────────────────────────────
+function resize() {
+  const wrap = document.getElementById('canvas-wrap');
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ── Animation ────────────────────────────────────────────────────────────
+let lidOpen = false;
+let lidOpenAmt = 0;
+const LID_OPEN_ANGLE = -Math.PI * 0.85;
+
+// Lid pivot: rotate around the back edge of the lid
+const lidPivot = new THREE.Group();
+scene.add(lidPivot);
+lidPivot.position.set(0, TRAY_DEPTH - (TRAY_DEPTH + LID_DEPTH)/2, -lh/2);
+lidGroup.removeFromParent();
+lidGroup.position.set(0, 0, lh/2);
+lidPivot.add(lidGroup);
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+
+  // Animate lid
+  const targetAmt = lidOpen ? 1 : 0;
+  lidOpenAmt += (targetAmt - lidOpenAmt) * 0.08;
+  lidPivot.rotation.x = lidOpenAmt * LID_OPEN_ANGLE;
+
+  renderer.render(scene, camera);
+}
+animate();
+
+// ── Hide loading ──────────────────────────────────────────────────────────
+setTimeout(() => {
+  document.getElementById('loading').style.display = 'none';
+}, 400);
+
+// ── Tooltip fade ─────────────────────────────────────────────────────────
+const tooltip = document.getElementById('tooltip');
+setTimeout(() => { tooltip.style.opacity = '0'; }, 4000);
+
+// ── Public API (called from HTML) ─────────────────────────────────────────
+let currentFaceId = null;
+
+window.selectFace = (id, btn) => {
+  currentFaceId = id;
+  // highlight
+  document.querySelectorAll('.face-btn').forEach(b => b.classList.remove('active'));
+  const dataBtn = document.querySelector(`[data-face="${id}"]`);
+  if (dataBtn) dataBtn.classList.add('active');
+  if (btn) btn.classList.add('active');
+
+  const name = id.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+  document.getElementById('sel-name').textContent = name;
+  document.getElementById('selected-label').style.display = 'block';
+  document.getElementById('edit-face-name').textContent = name;
+  document.getElementById('face-editor').style.display = 'block';
+
+  // Update color picker to current face color
+  if (faceMats[id]) {
+    const c = faceMats[id].color;
+    document.getElementById('face-color').value = '#' + c.getHexString();
+  }
+};
+
+window.applyImage = (input) => {
+  if (!currentFaceId || !input.files[0]) return;
+  const url = URL.createObjectURL(input.files[0]);
+  const loader = new THREE.TextureLoader();
+  loader.load(url, (tex) => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+    if (faceMats[currentFaceId]) {
+      faceMats[currentFaceId].map = tex;
+      faceMats[currentFaceId].needsUpdate = true;
+    }
+  });
+};
+
+window.applyColor = (hex) => {
+  if (!currentFaceId) return;
+  if (faceMats[currentFaceId]) {
+    faceMats[currentFaceId].color.set(hex);
+  }
+};
+
+window.applyBlend = (val) => {
+  if (!currentFaceId) return;
+  if (faceMats[currentFaceId]) {
+    faceMats[currentFaceId].map = val > 0.05 ? kraftTex : null;
+    faceMats[currentFaceId].needsUpdate = true;
+  }
+};
+
+window.resetFace = () => {
+  if (!currentFaceId || !faceMats[currentFaceId]) return;
+  const m = faceMats[currentFaceId];
+  m.map = kraftTex;
+  m.color.set(KRAFT_COLOR);
+  m.needsUpdate = true;
+  document.getElementById('face-color').value = '#c4a07a';
+};
+
+window.toggleOpen = (v) => { lidOpen = v; };
+
+window.toggleWire = (v) => {
+  Object.values(faceMats).forEach(m => { m.wireframe = v; });
+};
+
+window.toggleTexture = (v) => {
+  Object.values(faceMats).forEach(m => {
+    m.map = v ? kraftTex : null;
+    m.needsUpdate = true;
+  });
+};
+
+window.setView = (mode) => {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  trayGroup.visible = mode !== 'lid';
+  lidPivot.visible = mode !== 'tray';
+};
+
+window.setKraftColor = (hex) => {
+  KRAFT_COLOR.set(hex);
+  Object.values(faceMats).forEach(m => m.color.set(hex));
+  kraftTex.needsUpdate = true;
+};
+
+window.setLight = (val) => {
+  key.intensity = parseFloat(val);
+};
+
+window.resetCamera = () => {
+  camera.position.set(3.5, 2.8, 4.2);
+  controls.target.set(0, 0, 0);
+  controls.update();
+};
+
+window.exportPNG = () => {
+  renderer.render(scene, camera);
+  const link = document.createElement('a');
+  link.download = 'box-mockup.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+};
+
+</script>
+</body>
+</html>
